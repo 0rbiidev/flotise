@@ -5,10 +5,11 @@ using ::std::unique_ptr;
 
 unique_ptr<WindowManager> WindowManager::Create(){
     // 1. Open X display
-
     Display* display = XOpenDisplay(nullptr);
+
+    // error handling for 
     if (display == nullptr){
-        LOG(ERROR) <<"Failed to open X display" << XDisplayName(nullptr);
+        LOG(ERROR) << "Failed to open X display" << XDisplayName(nullptr);
         return nullptr;
     }
 
