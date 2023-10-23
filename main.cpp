@@ -9,7 +9,7 @@ int main (int argc, char** argv){
 
     unique_ptr<WindowManager> window_manager(WindowManager::Create());
     if (!window_manager){
-        LOG(ERROR) << "Failed toinitialise window manager. ";
+        LOG(ERROR) << "Failed to initialise window manager. ";
         return EXIT_FAILURE;
     }
 

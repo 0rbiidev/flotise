@@ -1,7 +1,9 @@
 #include "window_manager.hpp"
 #include <glog/logging.h>
+#include <cstring>
 
 using ::std::unique_ptr;
+using ::std::string;
 
 bool WindowManager::wm_detected_;
 
@@ -9,7 +11,7 @@ unique_ptr<WindowManager> WindowManager::Create(){
     // 1. Open X display
     Display* display = XOpenDisplay(nullptr);
 
-    // error handling for 
+    // error handling for opening display
     if (display == nullptr){
         LOG(ERROR) << "Failed to open X display" << XDisplayName(nullptr);
         return nullptr;
@@ -53,6 +55,26 @@ void WindowManager::Run() {
 
     // 2. Event Loop
     /* TODO */
+
+    for (;;){
+        // Next event
+        XEvent e;
+        XNextEvent(display_, &e);
+
+        //Handle event depending on type
+        switch (e.type){
+            case CreateNotify:
+                OnCreateNotify(e.xcreatewindow);
+                break;
+            case ConfigureRequest:
+                OnConfigureRequest(e.xconfigurerequest);
+                break;
+            case MapRequest:
+                OnMapRequest(e.xmaprequest);
+            default:
+                LOG(WARNING) << "Unhandled Event";
+        }
+    }
 }
 
 int WindowManager::OnWMDetected(Display* display, XErrorEvent* e){
@@ -61,6 +83,35 @@ int WindowManager::OnWMDetected(Display* display, XErrorEvent* e){
     // Set flag then return
     wm_detected_ = true;
     return 0;
+}
+
+void WindowManager::OnCreateNotify(const XCreateWindowEvent& e){}
+
+void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
+    XWindowChanges changes;
+    // 1. Changes from e -> changes object
+    changes.x = e.x;
+    changes.y = e.y;
+    changes.width = e.width;
+    changes.height = e.height;
+    changes.border_width = e.border_width;
+    changes.sibling = e.above;
+    changes.stack_mode = e.detail;
+
+    // 2. Apply changes using XConfigureWindow()
+    XConfigureWindow(display_, e.window, e.value_mask, &changes);
+
+    // 3. Log event for debugging
+    LOG(INFO) << "Resize " << e.window << " to " << e.width << "x" << e.height;
+}
+
+void WindowManager::OnMapRequest(const XMapRequestEvent& e){
+    Frame(e.window);
+    XMapWindow(display_, e.window);
+}
+
+void WindowManager::Frame(Window w){ //Draws window decorations
+    /* TODO */
 }
 
 int WindowManager::OnXError(Display* display, XErrorEvent* e){
