@@ -3,20 +3,25 @@ extern "C"{
 }
 
 #include <memory>
+#include <unordered_map>
 
 class WindowManager{
     private:
       WindowManager(Display* display);
       Display* display_;
       const Window root_;
+      ::std::unordered_map<Window, Window> clients_; //Maps windows to their respective frames
 
       void Frame(Window w);
+      void Unframe(Window w);
 
       // Event handlers
       void OnCreateNotify(const XCreateWindowEvent& e);
       void OnDestroyNotify(const XDestroyWindowEvent& e);
       void OnConfigureRequest(const XConfigureRequestEvent& e);
       void OnMapRequest(const XMapRequestEvent& e);
+      void OnConfigureNotify(const XConfigureEvent& e);
+      void OnUnmapNotify(const XUnmapEvent& e);
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib
