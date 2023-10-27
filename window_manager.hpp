@@ -12,7 +12,7 @@ class WindowManager{
       const Window root_;
       ::std::unordered_map<Window, Window> clients_; //Maps windows to their respective frames
 
-      void Frame(Window w);
+      void Frame(Window w, bool created_before_wm);
       void Unframe(Window w);
 
       // Event handlers
@@ -22,11 +22,16 @@ class WindowManager{
       void OnMapRequest(const XMapRequestEvent& e);
       void OnConfigureNotify(const XConfigureEvent& e);
       void OnUnmapNotify(const XUnmapEvent& e);
+      void OnKeyPress(const XKeyEvent& e);
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib
       static int OnWMDetected(Display* display, XErrorEvent* e); // detects if trying to run while another WM is running
       static bool wm_detected_; // set by OnWMDetected
+
+      // Atom consts
+      const Atom WM_DELETE_WINDOW;
+      const Atom WM_PROTOCOLS;
 
     public: 
       static ::std::unique_ptr<WindowManager> Create(); //Factory Method

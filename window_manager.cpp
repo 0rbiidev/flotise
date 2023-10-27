@@ -6,9 +6,49 @@ extern "C"{
 
 #include <glog/logging.h>
 #include <cstring>
+#include <algorithm>
 
 using ::std::unique_ptr;
 using ::std::string;
+
+static const char* const X_EVENT_TYPE_NAMES[] = {
+      "",
+      "",
+      "KeyPress",
+      "KeyRelease",
+      "ButtonPress",
+      "ButtonRelease",
+      "MotionNotify",
+      "EnterNotify",
+      "LeaveNotify",
+      "FocusIn",
+      "FocusOut",
+      "KeymapNotify",
+      "Expose",
+      "GraphicsExpose",
+      "NoExpose",
+      "VisibilityNotify",
+      "CreateNotify",
+      "DestroyNotify",
+      "UnmapNotify",
+      "MapNotify",
+      "MapRequest",
+      "ReparentNotify",
+      "ConfigureNotify",
+      "ConfigureRequest",
+      "GravityNotify",
+      "ResizeRequest",
+      "CirculateNotify",
+      "CirculateRequest",
+      "PropertyNotify",
+      "SelectionClear",
+      "SelectionRequest",
+      "SelectionNotify",
+      "ColormapNotify",
+      "ClientMessage",
+      "MappingNotify",
+      "GeneralEvent",
+  };
 
 bool WindowManager::wm_detected_;
 
@@ -28,8 +68,10 @@ unique_ptr<WindowManager> WindowManager::Create(){
 
 WindowManager::WindowManager(Display* display)
     : display_(CHECK_NOTNULL(display)),
-      root_(DefaultRootWindow(display_)){
-}
+      root_(DefaultRootWindow(display_)),
+      WM_DELETE_WINDOW(XInternAtom(display_, "WM_DELETE_WINDOW", false)),
+      WM_PROTOCOLS(XInternAtom(display_, "WM_PROTOCOLS", false))
+{}
 
 WindowManager::~WindowManager(){
     XCloseDisplay(display_);
@@ -58,13 +100,38 @@ void WindowManager::Run() {
     //  - set error handler
     XSetErrorHandler(&WindowManager::OnXError);
 
-    // 2. Event Loop
-    /* TODO */
+    //  - prevent changes to existing windows during framing
+    XGrabServer(display_);
 
+    //  - frame existing windows
+    Window returned_root, returned_parent;
+    Window* top_level_windows;
+    unsigned int num_top_level_windows;
+
+    CHECK(XQueryTree(
+        display_,
+        root_,
+        &returned_root,
+        &returned_parent,
+        &top_level_windows,
+        &num_top_level_windows
+    ));
+    CHECK_EQ(returned_root, root_);
+
+    for (unsigned int i = 0; i < num_top_level_windows; i++){
+        Frame(top_level_windows[i], true /*was created before flotise*/);
+    }
+
+    //  - allow changes again
+    XFree(top_level_windows);
+    XUngrabServer(display_);
+
+    // 2. Event Loop
     for (;;){
         // Next event
         XEvent e;
         XNextEvent(display_, &e);
+        LOG(INFO) << "Received event: " << X_EVENT_TYPE_NAMES[e.type];
 
         //Handle event depending on type
         switch (e.type){
@@ -86,8 +153,11 @@ void WindowManager::Run() {
             case DestroyNotify:
                 OnDestroyNotify(e.xdestroywindow);
                 break;
+            case KeyPress:
+                OnKeyPress(e.xkey);
+                break;
             default:
-                LOG(WARNING) << "Unhandled Event";
+                LOG(WARNING) << "Unhandled Event" << X_EVENT_TYPE_NAMES[e.type];
         }
     }
 }
@@ -130,7 +200,7 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
 }
 
 void WindowManager::OnMapRequest(const XMapRequestEvent& e){
-    Frame(e.window);
+    Frame(e.window, false);
     XMapWindow(display_, e.window);
 }
 
@@ -146,16 +216,25 @@ void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
     Unframe(e.window);
 }
 
-void WindowManager::Frame(Window w){ //Draws window decorations
-    /* TODO */
-
+void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window decorations
     const unsigned int BORDER_WIDTH = 3;
     const unsigned long BORDER_COLOUR = 0x9c353e;
     const unsigned long BG_COLOUR = 0x594646;
 
+    CHECK(!clients_.count(w));
+
     // Get attrs on window to frame (+ error checking)
     XWindowAttributes attributes;
     CHECK(XGetWindowAttributes(display_, w, &attributes));
+
+    // if framing pre-existing window during init
+    // have to check that it is visible and doesnt set override_redirect
+    if (created_before_wm){
+        if(attributes.override_redirect /*flag set means window should not be managed by a wm*/ ||
+           attributes.map_state != IsViewable){
+            return;
+        }
+    }
 
     // Create frame
     const Window frame = XCreateSimpleWindow (
@@ -243,6 +322,8 @@ void WindowManager::Frame(Window w){ //Draws window decorations
 }
 
 void WindowManager::Unframe(Window w){
+    CHECK(clients_.count(w));
+
     // Get frame
     const Window frame = clients_[w];
     // Unmap frame
@@ -265,6 +346,57 @@ void WindowManager::Unframe(Window w){
 
 void WindowManager::OnDestroyNotify(const XDestroyWindowEvent& e){}
 
-int WindowManager::OnXError(Display* display, XErrorEvent* e){
-    /*TODO*/
+void WindowManager::OnKeyPress(const XKeyEvent& e){
+    //alt+f4 - close window
+    if ((e.state & Mod1Mask) && (e.keycode == XKeysymToKeycode(display_, XK_F4))){
+        Atom* supported_protocols;
+        int num_supported_protocols;
+        // Try the WM_DELETE_WINDOW protocol (preferred)
+        if (XGetWMProtocols
+            (
+                display_,
+                e.window,
+                &supported_protocols,
+                &num_supported_protocols
+            ) &&supported_protocols + 
+            (
+                ::std::find(supported_protocols,
+                            supported_protocols + num_supported_protocols,
+                            WM_DELETE_WINDOW
+                            ) !=
+                    supported_protocols + num_supported_protocols
+            )
+        ){
+            LOG(INFO) << "Gracefully deleting window " << e.window;
+
+            //create message
+            XEvent msg;
+            memset(&msg, 0, sizeof(msg));
+            msg.xclient.type = ClientMessage;
+            msg.xclient.message_type = WM_PROTOCOLS;
+            msg.xclient.window = e.window;
+            msg.xclient.format = 32;
+            msg.xclient.data.l[0] = WM_DELETE_WINDOW;
+
+            // send message
+            CHECK(XSendEvent(display_, e.window, false, 0, (XEvent *)&msg));
+        } else { // if protocol unsupported, kill window
+            LOG(INFO) << "Killing Window " << e.window;
+            XKillClient(display_, e.window);
+        }
+    }
 }
+
+int WindowManager::OnXError(Display* display, XErrorEvent* e){
+    const int MAX_ERROR_TEXT_LENGTH = 1024;
+    char error_text[MAX_ERROR_TEXT_LENGTH];
+    XGetErrorText(display, e->error_code, error_text, sizeof(error_text));
+    LOG(ERROR) << "Received X error:\n"
+             << "    Request: " << int(e->request_code)
+             //<< " - " << XRequestCodeToString(e->request_code) << "\n"
+             << "    Error code: " << int(e->error_code)
+             << " - " << error_text << "\n"
+             << "    Resource ID: " << e->resourceid;
+  // The return value is ignored.
+  return 0;
+}    /*TODO*/
