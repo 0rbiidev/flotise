@@ -10,6 +10,7 @@ extern "C"{
 
 using ::std::unique_ptr;
 using ::std::string;
+using ::std::max;
 
 static const char* const X_EVENT_TYPE_NAMES[] = {
       "",
@@ -153,8 +154,20 @@ void WindowManager::Run() {
             case DestroyNotify:
                 OnDestroyNotify(e.xdestroywindow);
                 break;
+            case ButtonPress:
+                OnButtonPress(e.xbutton);
+                break;
             case KeyPress:
                 OnKeyPress(e.xkey);
+                break;
+            case ButtonRelease:
+                OnButtonRelease(e.xbutton);
+                break; 
+            case KeyRelease:
+                OnKeyRelease(e.xkey);
+                break;
+            case MotionNotify:
+                OnMotionNotify(e.xmotion);
                 break;
             default:
                 LOG(WARNING) << "Unhandled Event" << X_EVENT_TYPE_NAMES[e.type];
@@ -384,6 +397,102 @@ void WindowManager::OnKeyPress(const XKeyEvent& e){
             LOG(INFO) << "Killing Window " << e.window;
             XKillClient(display_, e.window);
         }
+    } 
+    // alt+tab - cycle windows
+    else if ((e.state & Mod1Mask) && e.keycode == XKeysymToKeycode(display_, XK_Tab))
+    {
+        //Get next window
+        auto i = clients_.find(e.window);
+        CHECK(i != clients_.end());
+        ++i;
+        if (i == clients_.end())
+        {
+            i = clients_.begin();
+        }
+
+        //Raise window
+        XRaiseWindow(display_, i->second);
+        XSetInputFocus(display_, i->first, RevertToPointerRoot, CurrentTime);
+    }
+}
+
+void WindowManager::OnKeyRelease(const XKeyEvent& e){}
+
+void WindowManager::OnButtonPress(const XButtonEvent& e){
+    CHECK(clients_.count(e.window));
+    const Window frame = clients_[e.window];
+
+    dragStartX_ = e.x_root; //
+    dragStartY_ = e.y_root; // save cursor's starting position
+
+    Window returnedroot;
+    int x,y;
+    unsigned width, height, borderwidth, depth;
+
+    CHECK(XGetGeometry(
+        display_,
+        frame,
+        &returnedroot,
+        &x, &y,
+        &width, &height,
+        &borderwidth,
+        &depth
+    ));
+
+    dragStartFrameX_ = x;
+    dragStartFrameY_ = y;
+
+    dragStartFrameWidth_ = width;
+    dragStartFrameHeight_ = height;
+
+    XRaiseWindow(display_, frame);
+}
+
+void WindowManager::OnButtonRelease(const XButtonEvent& e){}
+
+void WindowManager::OnMotionNotify(const XMotionEvent& e){
+    CHECK(clients_.count(e.window));
+    const Window frame = clients_[e.window];
+
+    const int dragX = e.x_root;
+    const int dragY = e.y_root;
+
+    const int deltaX = dragX - dragStartX_;
+    const int deltaY = dragY - dragStartY_;
+
+    if (e.state & Button1Mask)
+    // alt+lmouse = move window
+    {
+        int destFrameX = dragStartFrameX_ + deltaX;
+        int destFrameY = dragStartFrameY_ + deltaY;
+
+        XMoveWindow(
+            display_,
+            frame,
+            destFrameX, destFrameY
+        );
+    }
+
+    else if (e.state & Button3Mask)
+    // alt+rmouse = resize window
+    {
+        int deltaWidth = max(deltaX, -dragStartFrameWidth_);
+        int deltaHeight = max(deltaY, -dragStartFrameY_);
+
+        int destFrameWidth = dragStartFrameWidth_ + deltaWidth;
+        int destFrameHeight = dragStartFrameHeight_ + deltaHeight;
+
+        XResizeWindow(
+            display_,
+            frame,
+            destFrameWidth, destFrameHeight
+        );
+
+        XResizeWindow(
+            display_,
+            e.window,
+            destFrameWidth, destFrameHeight
+        );
     }
 }
 

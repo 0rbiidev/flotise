@@ -11,6 +11,12 @@ class WindowManager{
       Display* display_;
       const Window root_;
       ::std::unordered_map<Window, Window> clients_; //Maps windows to their respective frames
+      int dragStartX_;
+      int dragStartY_;
+      int dragStartFrameX_;
+      int dragStartFrameY_;
+      int dragStartFrameWidth_;
+      int dragStartFrameHeight_;
 
       void Frame(Window w, bool created_before_wm);
       void Unframe(Window w);
@@ -23,6 +29,11 @@ class WindowManager{
       void OnConfigureNotify(const XConfigureEvent& e);
       void OnUnmapNotify(const XUnmapEvent& e);
       void OnKeyPress(const XKeyEvent& e);
+      void OnButtonPress(const XButtonEvent& e);
+      void OnKeyRelease(const XKeyEvent& e);
+      void OnButtonRelease(const XButtonEvent& e);
+      void OnMotionNotify(const XMotionEvent& e);
+
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib
