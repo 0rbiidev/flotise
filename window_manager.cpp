@@ -2,6 +2,7 @@
 
 extern "C"{
 #include <X11/Xutil.h>
+#include <X11/Xft/Xft.h>
 }
 
 #include <glog/logging.h>
@@ -84,7 +85,7 @@ void WindowManager::Run() {
 
     wm_detected_ = false;
     XSetErrorHandler(&WindowManager::OnWMDetected); // defer to OnWMDetected if error encountered
-
+    
     XSelectInput (
         display_,
         root_,
@@ -278,9 +279,16 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
         frame,
         0, 0
     );
+    /* XSetWindowBorder( //research into pixmaps for window border
+        display_,
+        frame,
+
+    ); */
 
     // map frame to display
     XMapWindow(display_, frame);
+
+    
 
     // Save handle
     clients_[w] = frame;
@@ -509,3 +517,5 @@ int WindowManager::OnXError(Display* display, XErrorEvent* e){
   // The return value is ignored.
   return 0;
 }    /*TODO*/
+
+int 

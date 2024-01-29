@@ -1,7 +1,7 @@
 CXXFLAGS ?= -Wall -g
 CXXFLAGS += -std=c++1y
-CXXFLAGS += `pkg-config --cflags x11 libglog`
-LDFLAGS += `pkg-config --libs x11 libglog`
+CXXFLAGS += `pkg-config --cflags x11 libglog freetype2`
+LDFLAGS += `pkg-config --libs x11 libglog freetype2`
 
 all: flotise
 
