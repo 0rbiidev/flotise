@@ -11,6 +11,8 @@ class WindowManager{
       Display* display_;
       const Window root_;
       ::std::unordered_map<Window, Window> clients_; //Maps windows to their respective frames
+      //::std::unordered_map<Window, windowtree> trees_; //Maps frame to it's window tree 
+
       int dragStartX_;
       int dragStartY_;
       int dragStartFrameX_;
