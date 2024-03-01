@@ -17,10 +17,6 @@ windowtree::windowtree(){
   root=NULL;
 }
 
-windowtree::~windowtree(){
-  destroytree();
-}
-
 void windowtree::destroytree(node* leaf){
   if (leaf!=NULL){
     destroytree(leaf->left);
@@ -29,14 +25,19 @@ void windowtree::destroytree(node* leaf){
   }
 }
 
+windowtree::~windowtree(){
+  destroytree(root);
+}
+
+
 void windowtree::insert(Window* newwin, node* n){ // adds new window to end of tree
   if (n->t == full){
-    n->left = *n;
+    n->left = n;
     n->right = new node;
     n->right->t = full;
     n->t = horizontal;
     
-    calcSizes(n->x, n->y, n->width, n->height, n);
+    calcSizes(n->X, n->Y, n->width, n->height, n);
   }
   else insert(newwin, n->right);
 }
@@ -46,10 +47,10 @@ bool windowtree::removeWindow(Window* w, node* n){ // search and remove by windo
     if (w == n->w){ // ...then root points to w, remove root
       node* sibling; 
       if (n->parent->left == n){ 
-        sibling = n->parent->right
+        sibling = n->parent->right;
       }
       else{
-        sibling = n->parent->left
+        sibling = n->parent->left;
       }
 
       // 1) Reconfigure tree to retain balance
@@ -86,7 +87,7 @@ bool windowtree::removeContainer(node* n, node* root){ // search and remove by n
   else if (root->t != full){
     return removeContainer(n, root->left) || removeContainer(n, root->right);
   }
-  else return;
+  else return false;
 }
 
 void windowtree::reparentToGrandparent(node* n){
@@ -98,7 +99,7 @@ void windowtree::reparentToGrandparent(node* n){
   n->parent = n->parent->parent;
 }
 
-void windowtree::calcSizes(int X, int Y, int width, int height, node *root){ // Calculates absolute size of each tiled window
+void windowtree::calcSizes(int X, int Y, int width, int height, node* root){ // Calculates absolute size of each tiled window
   // set window attributes
   root->X = X;
   root->Y = Y;
@@ -110,7 +111,7 @@ void windowtree::calcSizes(int X, int Y, int width, int height, node *root){ // 
     int X2 = X; // coords for 2nd subcontainer
     int Y2 = Y; //
 
-    if (node->t == horizontal){ // horizontally divide space
+    if (root->t == horizontal){ // horizontally divide space
       height = height/2;
       X2 = X2 + height;
     }
@@ -125,7 +126,7 @@ void windowtree::calcSizes(int X, int Y, int width, int height, node *root){ // 
   }
 }
 
-void windowTree::switchMode(node* n, enum nodetype t){ // Changes how subtree is tiled
+void windowtree::switchMode(node* n, enum nodetype t){ // Changes how subtree is tiled
   if (n->t != t){ // skip if no change
 
     // ensures container with two subcontainers always divides space

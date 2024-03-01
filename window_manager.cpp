@@ -1,11 +1,12 @@
 #include "window_manager.hpp"
+//#include "window_tree.hpp"
 
 extern "C"{
 #include <X11/Xutil.h>
 #include <X11/Xft/Xft.h>
 }
 
-#include <glog/logging.h>
+#include "glog/logging.h"
 #include <cstring>
 #include <algorithm>
 
@@ -245,7 +246,7 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
     // have to check that it is visible and doesnt set override_redirect
     if (created_before_wm){
         if(attributes.override_redirect /*flag set means window should not be managed by a wm*/ ||
-           attributes.map_state != IsViewable){
+            attributes.map_state != IsViewable){
             return;
         }
     }
@@ -516,6 +517,4 @@ int WindowManager::OnXError(Display* display, XErrorEvent* e){
              << "    Resource ID: " << e->resourceid;
   // The return value is ignored.
   return 0;
-}    /*TODO*/
-
-int 
+}
