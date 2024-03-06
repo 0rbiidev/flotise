@@ -228,44 +228,71 @@ void WindowManager::OnMapRequest(const XMapRequestEvent& e){
     if (focused == PointerRoot){
         LOG(INFO) << "Create new container for " << e.window;
         Frame(e.window, false);
-        //trees_[clients_[e.window]]->root->w = e.window;
-        //const auto itr = clients_.find(e.window);
-        //trees_[itr->second]->root->w = e.window;
-
-        // trees_[clients_[e.window]]->root->t = full;
         XMapWindow(display_, e.window);
     }
 
     else{
         LOG(INFO) << "Add " << e.window << " to existing container";
-        windowtree* tree = trees_[focused];
-        clients_.insert(pair<Window, Window>(e.window, focused));
+        //const auto itr = clients_.find(focused);
+        Window frame = focused;
+        clients_.insert(pair<Window, Window>(e.window, frame));
 
-        tree->insert(e.window);
+        trees_[frame].insert(e.window);
 
         XWindowAttributes attributes;
-        CHECK(XGetWindowAttributes(display_, focused, &attributes));
-
-        // Request that X report events associated with the frame
-        XSelectInput(
-            display_,
-            focused,
-            SubstructureRedirectMask | SubstructureNotifyMask
-        );
+        CHECK(XGetWindowAttributes(display_, frame, &attributes));
 
         // Restore client if crash
         XAddToSaveSet(display_, e.window);
 
+        // XResizeWindow(display_, e.window, attributes.width*0.5, attributes.height);
+
+        // XReparentWindow(
+        //     display_,
+        //     e.window,
+        //     frame,
+        //     0.5*attributes.width, 0
+        // );
+
+        buildFrame(frame);
+    }
+}
+
+void WindowManager::buildFrame(Window frame){
+    windowtree tree = trees_[frame];
+
+    XWindowAttributes attr;
+    CHECK(XGetWindowAttributes(display_, frame, &attr));
+
+    int width = attr.width;
+    int height = attr.height;
+
+    tile(frame, tree.root, 0, 0, width, height);
+}
+
+void WindowManager::tile(Window frame, struct node* root, int x, int y, int width, int height){
+    if (root == NULL) return;
+
+    if (root->t == horizontal){
+        tile(frame, root->left, x, y, width, height*0.5);
+        tile(frame, root->right, x, y+0.5*height, width, height*0.5);
+    }
+    else if (root->t == veritcal){
+        tile(frame, root->left, x, y, width*0.5, height);
+        tile(frame, root->right, x+0.5*width, y, width*0.5, height);
+    }
+    else{
+        XResizeWindow(display_, root->w, width, height);
+
         XReparentWindow(
             display_,
-            e.window,
-            focused,
-            0, 0
+            root->w,
+            frame,
+            x, y
         );
 
-        XMapWindow(display_, e.window);
+        XMapWindow(display_, root->w);
 
-        drawTree(tree->root, attributes.x, attributes.y, attributes.width, attributes.height);
     }
 }
 
@@ -350,7 +377,7 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
 
     wt->root = n;
 
-    trees_[frame] = wt;
+    trees_[frame] = *wt;
     
     XGrabButton( // Move window (alt + lclick & drag)
         display_,
@@ -517,7 +544,7 @@ void WindowManager::OnButtonPress(const XButtonEvent& e){
     dragStartFrameHeight_ = height;
 
     XRaiseWindow(display_, frame);
-    XSetInputFocus(display_, frame, RevertToParent, CurrentTime);
+    XSetInputFocus(display_, e.window, RevertToParent, CurrentTime);
 }
 
 void WindowManager::OnButtonRelease(const XButtonEvent& e){}

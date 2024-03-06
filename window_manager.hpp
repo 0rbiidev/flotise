@@ -14,7 +14,7 @@ class WindowManager{
       Display* display_;
       const Window root_;
       ::std::multimap<Window, Window> clients_; //Maps windows to their respective frames
-      ::std::unordered_map<Window, windowtree*> trees_; //Maps frame to it's window tree
+      ::std::unordered_map<Window, windowtree> trees_; //Maps frame to it's window tree
 
       int dragStartX_;
       int dragStartY_;
@@ -40,6 +40,8 @@ class WindowManager{
       void OnMotionNotify(const XMotionEvent& e);
       
       void drawTree(struct node* root, int x, int y, int width, int height);
+      void buildFrame(Window frame);
+      void tile(Window frame, struct node* root, int x, int y, int width, int height);
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib
