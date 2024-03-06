@@ -23,7 +23,8 @@ To run flotise in testing mode, ensure the build dependencies are met along with
 - xinit
 - xterm, xeyes
 
-Then run the following script in the root of the repository
+Then run the following script in the root of the repository.
+
     ./run.sh
 
 ## Thanks
