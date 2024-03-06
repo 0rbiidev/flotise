@@ -32,7 +32,7 @@ struct node{
   // container attributes
   int X, Y; //location relative to parent
   int width, height; //absolute size on screen
-  Window *w; //pointer to directly contained window (NULL if contains subcontainers)
+  Window w; //ID of directly contained window
 
   // pointers to neighbours
   node *left;
@@ -48,14 +48,14 @@ class windowtree{
     windowtree();
     ~windowtree();
 
-    void insert(Window* newwin, node* n);
-    bool removeWindow(Window *w, node *n);
+    void insert(const Window newwin);
+    bool removeWindow(Window w, node *n);
     bool removeContainer(node *n, node *root);
-    node *search(Window *w);
+    node *search(Window w);
     void destroytree();
     void calcSizes(int X, int Y, int width, int height, node* root);
     void switchMode(node* n, enum nodetype t);
-
+    node *root;
   private:
     void destroytree(node *root);
     node *search(Window *w, node *root);
@@ -63,5 +63,4 @@ class windowtree{
     
     //::std::unordered_map<Window, node*> leaves_; 
 
-    node *root;
 };

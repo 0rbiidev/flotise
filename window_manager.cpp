@@ -13,6 +13,7 @@ extern "C"{
 using ::std::unique_ptr;
 using ::std::string;
 using ::std::max;
+using ::std::pair;
 
 static const char* const X_EVENT_TYPE_NAMES[] = {
       "",
@@ -203,7 +204,8 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
     // 2. Apply changes using XConfigureWindow()
 
     if (clients_.count(e.window)){ //apply changes to window frame...
-        const Window frame = clients_[e.window];
+        const auto itr = clients_.find(e.window);
+        const Window frame = itr->second;
         XConfigureWindow(display_, frame, e.value_mask, &changes);
         LOG(INFO) << "Resize [" << frame << "] to " << e.width << "x" << e.height;
     }
@@ -215,8 +217,56 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
 }
 
 void WindowManager::OnMapRequest(const XMapRequestEvent& e){
-    Frame(e.window, false);
-    XMapWindow(display_, e.window);
+    // Frame(e.window, false);
+    // XMapWindow(display_, e.window);
+
+    Window focused;
+    int revertTo;
+
+    XGetInputFocus(display_, &focused, &revertTo);
+
+    if (focused == PointerRoot){
+        LOG(INFO) << "Create new container for " << e.window;
+        Frame(e.window, false);
+        //trees_[clients_[e.window]]->root->w = e.window;
+        //const auto itr = clients_.find(e.window);
+        //trees_[itr->second]->root->w = e.window;
+
+        // trees_[clients_[e.window]]->root->t = full;
+        XMapWindow(display_, e.window);
+    }
+
+    else{
+        LOG(INFO) << "Add " << e.window << " to existing container";
+        windowtree* tree = trees_[focused];
+        clients_.insert(pair<Window, Window>(e.window, focused));
+
+        tree->insert(e.window);
+
+        XWindowAttributes attributes;
+        CHECK(XGetWindowAttributes(display_, focused, &attributes));
+
+        // Request that X report events associated with the frame
+        XSelectInput(
+            display_,
+            focused,
+            SubstructureRedirectMask | SubstructureNotifyMask
+        );
+
+        // Restore client if crash
+        XAddToSaveSet(display_, e.window);
+
+        XReparentWindow(
+            display_,
+            e.window,
+            focused,
+            0, 0
+        );
+
+        XMapWindow(display_, e.window);
+
+        drawTree(tree->root, attributes.x, attributes.y, attributes.width, attributes.height);
+    }
 }
 
 void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
@@ -289,11 +339,19 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
     // map frame to display
     XMapWindow(display_, frame);
 
-    
-
     // Save handle
-    clients_[w] = frame;
+    clients_.insert(pair<Window, Window>(w, frame));
+    
+    windowtree* wt = new windowtree;
+    node* n = new node;
+    n->t = full;
+    n->right = NULL;
+    n->left = NULL;
 
+    wt->root = n;
+
+    trees_[frame] = wt;
+    
     XGrabButton( // Move window (alt + lclick & drag)
         display_,
         Button1,
@@ -347,7 +405,8 @@ void WindowManager::Unframe(Window w){
     CHECK(clients_.count(w));
 
     // Get frame
-    const Window frame = clients_[w];
+    const auto itr = clients_.find(w);
+    const Window frame = itr->second;
     // Unmap frame
     XUnmapWindow(display_, frame);
     // Reparent frameless client to root window
@@ -362,6 +421,8 @@ void WindowManager::Unframe(Window w){
     // Destroy frame
     XDestroyWindow(display_, frame);
     clients_.erase(w);
+
+    XSetInputFocus(display_, PointerRoot, PointerRoot, CurrentTime);
 
     LOG(INFO) << "Unframed Window " << w << " [" << frame << "]";
 }
@@ -429,7 +490,8 @@ void WindowManager::OnKeyRelease(const XKeyEvent& e){}
 
 void WindowManager::OnButtonPress(const XButtonEvent& e){
     CHECK(clients_.count(e.window));
-    const Window frame = clients_[e.window];
+    const auto itr = clients_.find(e.window);
+    const Window frame = itr->second;
 
     dragStartX_ = e.x_root; //
     dragStartY_ = e.y_root; // save cursor's starting position
@@ -455,13 +517,16 @@ void WindowManager::OnButtonPress(const XButtonEvent& e){
     dragStartFrameHeight_ = height;
 
     XRaiseWindow(display_, frame);
+    XSetInputFocus(display_, frame, RevertToParent, CurrentTime);
 }
 
 void WindowManager::OnButtonRelease(const XButtonEvent& e){}
 
 void WindowManager::OnMotionNotify(const XMotionEvent& e){
     CHECK(clients_.count(e.window));
-    const Window frame = clients_[e.window];
+
+    const auto itr = clients_.find(e.window);
+    const Window frame = itr->second;
 
     const int dragX = e.x_root;
     const int dragY = e.y_root;
@@ -503,6 +568,24 @@ void WindowManager::OnMotionNotify(const XMotionEvent& e){
             destFrameWidth, destFrameHeight
         );
     }
+}
+
+void WindowManager::drawTree(struct node* root, int x, int y, int width, int height){
+    if (root == NULL) return;
+
+    if (root->t == horizontal){
+        drawTree(root->left, x, y, width, 0.5*height);
+        drawTree(root->right, x, 1.5*y, width, 0.5*height);
+    }
+    else if (root->t == veritcal){
+        drawTree(root->left, x, y, 0.5*width, height);
+        drawTree(root->right, 1.5*x, y, 0.5*width, height);
+    }
+    else{
+        XMoveResizeWindow(display_, root->w, x, y, width, height);
+    }
+
+    return;
 }
 
 int WindowManager::OnXError(Display* display, XErrorEvent* e){

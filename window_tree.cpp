@@ -30,21 +30,45 @@ windowtree::~windowtree(){
 }
 
 
-void windowtree::insert(Window* newwin, node* n){ // adds new window to end of tree
-  if (n->t == full){
-    n->left = n;
-    n->right = new node;
-    n->right->t = full;
-    n->t = horizontal;
-    
-    calcSizes(n->X, n->Y, n->width, n->height, n);
+void windowtree::insert(const Window newwin){ // adds new window to end of tree
+  node *p = new node;
+  node *parent;
+  p->w = newwin;
+  p->left = NULL;
+  p->right = NULL;
+  p->t = full;
+
+  if (root == NULL){
+    root = p;
   }
-  else insert(newwin, n->right);
+
+  else{
+    node *current = root;
+
+    while (current->t != full){
+      parent = current;
+      if (current->left->t == full) current = current->left;
+      else current = current->right;
+    }
+
+    parent->right = p;
+    
+    node *n = new node;
+    n->w = parent->w;
+    n->left = NULL;
+    n->right = NULL;
+    n->t = full;
+    parent->left = n;
+
+    parent->t = full;
+  }
+  
+  return;
 }
 
-bool windowtree::removeWindow(Window* w, node* n){ // search and remove by window
+bool windowtree::removeWindow(Window w, node* n){ // search and remove by window
   if (n->t == full){ // ...then root is leaf, check for w
-    if (w == n->w){ // ...then root points to w, remove root
+    if (w == n->w){ // ...then root contains window, remove
       node* sibling; 
       if (n->parent->left == n){ 
         sibling = n->parent->right;

@@ -4,6 +4,7 @@ extern "C"{
 
 #include <memory>
 #include <unordered_map>
+#include <map>
 
 #include "window_tree.hpp"
 
@@ -12,8 +13,8 @@ class WindowManager{
       WindowManager(Display* display);
       Display* display_;
       const Window root_;
-      ::std::unordered_map<Window, Window> clients_; //Maps windows to their respective frames
-      ::std::unordered_map<Window, windowtree> trees_; //Maps frame to it's window tree 
+      ::std::multimap<Window, Window> clients_; //Maps windows to their respective frames
+      ::std::unordered_map<Window, windowtree*> trees_; //Maps frame to it's window tree
 
       int dragStartX_;
       int dragStartY_;
@@ -37,7 +38,8 @@ class WindowManager{
       void OnKeyRelease(const XKeyEvent& e);
       void OnButtonRelease(const XButtonEvent& e);
       void OnMotionNotify(const XMotionEvent& e);
-
+      
+      void drawTree(struct node* root, int x, int y, int width, int height);
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib
