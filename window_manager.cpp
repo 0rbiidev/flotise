@@ -1,5 +1,4 @@
 #include "window_manager.hpp"
-//#include "window_tree.hpp"
 
 extern "C"{
 #include <X11/Xutil.h>
@@ -93,6 +92,8 @@ void WindowManager::Run() {
         root_,
         SubstructureRedirectMask | SubstructureNotifyMask
     );
+
+    XSetInputFocus(display_, PointerRoot, NULL, CurrentTime);
 
     XSync(display_, false);
 
@@ -232,17 +233,64 @@ void WindowManager::OnMapRequest(const XMapRequestEvent& e){
 
     else{
         LOG(INFO) << "Add " << e.window << " to existing container";
-        Window frame = focused;
-        //clients_[e.window] = frame;
+
+        auto itr = clients_.find(focused);
+        Window frame = itr->second;
+        clients_.insert({ e.window, frame });
 
         XWindowAttributes attributes;
-        CHECK(XGetWindowAttributes(display_, frame, &attributes));
 
         XReparentWindow(
             display_,
             e.window,
             frame,
             0, 0
+        );
+
+        XGrabButton( // Move window (alt + lclick & drag)
+            display_,
+            Button1,
+            Mod1Mask,
+            e.window,
+            false,
+            ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+            GrabModeAsync,
+            GrabModeAsync,
+            None,
+            None
+        );
+
+        XGrabButton( // Resize window (alt + rclick & drag)
+            display_,
+            Button3,
+            Mod1Mask,
+            e.window,
+            false,
+            ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+            GrabModeAsync,
+            GrabModeAsync,
+            None,
+            None
+        );
+
+        XGrabKey( // Kill window (alt+f4)
+            display_,
+            XKeysymToKeycode(display_, XK_F4),
+            Mod1Mask,
+            e.window,
+            false,
+            GrabModeAsync,
+            GrabModeAsync
+        );
+
+        XGrabKey( // Switch window (alt+tab)
+            display_,
+            XKeysymToKeycode(display_, XK_Tab),
+            Mod1Mask,
+            e.window,
+            false,
+            GrabModeAsync,
+            GrabModeAsync
         );
 
         XMapWindow(display_, e.window);
@@ -265,12 +313,6 @@ void WindowManager::buildFrame(Window frame){
 
     CHECK(XQueryTree(display_, frame, &parent, &root, &children, &childrenSize));
 
-    // XResizeWindow(
-    //     display_,
-    //     frame,
-    //     width, height
-    // );
-
     for (int i = 0; i < childrenSize-1; i++){
         if (i%2) width *= 0.5;
         else height *= 0.5;
@@ -281,16 +323,10 @@ void WindowManager::buildFrame(Window frame){
             width, height
         );
 
-        XReparentWindow(
+        XMoveWindow(
             display_,
             children[i],
-            frame,
-            x,y
-        );
-
-        XMapWindow(
-            display_,
-            children[i]
+            x, y
         );
 
         if (i%2) x += width;
@@ -303,43 +339,11 @@ void WindowManager::buildFrame(Window frame){
         width, height
     );
 
-    XReparentWindow(
+    XMoveWindow(
         display_,
         children[childrenSize-1],
-        frame,
         x, y
     );
-
-    XMapWindow(
-        display_,
-        children[childrenSize - 1]
-    );
-}
-
-void WindowManager::tile(Window frame, struct node* root, int x, int y, int width, int height){
-    if (root == NULL) return;
-
-    if (root->t == horizontal){
-        tile(frame, root->left, x, y, width, height*0.5);
-        tile(frame, root->right, x, y+0.5*height, width, height*0.5);
-    }
-    else if (root->t == veritcal){
-        tile(frame, root->left, x, y, width*0.5, height);
-        tile(frame, root->right, x+0.5*width, y, width*0.5, height);
-    }
-    else{
-        XResizeWindow(display_, root->w, width, height);
-
-        XReparentWindow(
-            display_,
-            root->w,
-            frame,
-            x, y
-        );
-
-        XMapWindow(display_, root->w);
-
-    }
 }
 
 void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
@@ -413,17 +417,7 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
     XMapWindow(display_, frame);
 
     // Save handle
-    clients_[w] = frame;
-    
-    windowtree* wt = new windowtree;
-    node* n = new node;
-    n->t = full;
-    n->right = NULL;
-    n->left = NULL;
-
-    wt->root = n;
-
-    trees_[frame] = *wt;
+    clients_.insert({ w, frame });
     
     XGrabButton( // Move window (alt + lclick & drag)
         display_,
@@ -634,11 +628,7 @@ void WindowManager::OnMotionNotify(const XMotionEvent& e){
             destFrameWidth, destFrameHeight
         );
 
-        XResizeWindow(
-            display_,
-            e.window,
-            destFrameWidth, destFrameHeight
-        );
+        buildFrame(frame);
     }
 }
 
