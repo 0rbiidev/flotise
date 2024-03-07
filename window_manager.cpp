@@ -204,8 +204,7 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
     // 2. Apply changes using XConfigureWindow()
 
     if (clients_.count(e.window)){ //apply changes to window frame...
-        const auto itr = clients_.find(e.window);
-        const Window frame = itr->second;
+        const Window frame = clients_[e.window];
         XConfigureWindow(display_, frame, e.value_mask, &changes);
         LOG(INFO) << "Resize [" << frame << "] to " << e.width << "x" << e.height;
     }
@@ -233,41 +232,88 @@ void WindowManager::OnMapRequest(const XMapRequestEvent& e){
 
     else{
         LOG(INFO) << "Add " << e.window << " to existing container";
-        //const auto itr = clients_.find(focused);
         Window frame = focused;
-        clients_.insert(pair<Window, Window>(e.window, frame));
-
-        trees_[frame].insert(e.window);
+        //clients_[e.window] = frame;
 
         XWindowAttributes attributes;
         CHECK(XGetWindowAttributes(display_, frame, &attributes));
 
-        // Restore client if crash
-        XAddToSaveSet(display_, e.window);
+        XReparentWindow(
+            display_,
+            e.window,
+            frame,
+            0, 0
+        );
 
-        // XResizeWindow(display_, e.window, attributes.width*0.5, attributes.height);
-
-        // XReparentWindow(
-        //     display_,
-        //     e.window,
-        //     frame,
-        //     0.5*attributes.width, 0
-        // );
+        XMapWindow(display_, e.window);
 
         buildFrame(frame);
     }
 }
 
 void WindowManager::buildFrame(Window frame){
-    windowtree tree = trees_[frame];
-
     XWindowAttributes attr;
     CHECK(XGetWindowAttributes(display_, frame, &attr));
 
     int width = attr.width;
     int height = attr.height;
+    int x = 0;
+    int y = 0;
 
-    tile(frame, tree.root, 0, 0, width, height);
+    Window parent, root, *children;
+    unsigned int childrenSize;
+
+    CHECK(XQueryTree(display_, frame, &parent, &root, &children, &childrenSize));
+
+    // XResizeWindow(
+    //     display_,
+    //     frame,
+    //     width, height
+    // );
+
+    for (int i = 0; i < childrenSize-1; i++){
+        if (i%2) width *= 0.5;
+        else height *= 0.5;
+
+        XResizeWindow(
+            display_, 
+            children[i], 
+            width, height
+        );
+
+        XReparentWindow(
+            display_,
+            children[i],
+            frame,
+            x,y
+        );
+
+        XMapWindow(
+            display_,
+            children[i]
+        );
+
+        if (i%2) x += width;
+        else y += height;
+    }
+
+    XResizeWindow(
+        display_,
+        children[childrenSize-1],
+        width, height
+    );
+
+    XReparentWindow(
+        display_,
+        children[childrenSize-1],
+        frame,
+        x, y
+    );
+
+    XMapWindow(
+        display_,
+        children[childrenSize - 1]
+    );
 }
 
 void WindowManager::tile(Window frame, struct node* root, int x, int y, int width, int height){
@@ -367,7 +413,7 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
     XMapWindow(display_, frame);
 
     // Save handle
-    clients_.insert(pair<Window, Window>(w, frame));
+    clients_[w] = frame;
     
     windowtree* wt = new windowtree;
     node* n = new node;
@@ -432,8 +478,8 @@ void WindowManager::Unframe(Window w){
     CHECK(clients_.count(w));
 
     // Get frame
-    const auto itr = clients_.find(w);
-    const Window frame = itr->second;
+    Window frame = clients_[w];
+
     // Unmap frame
     XUnmapWindow(display_, frame);
     // Reparent frameless client to root window
@@ -517,8 +563,7 @@ void WindowManager::OnKeyRelease(const XKeyEvent& e){}
 
 void WindowManager::OnButtonPress(const XButtonEvent& e){
     CHECK(clients_.count(e.window));
-    const auto itr = clients_.find(e.window);
-    const Window frame = itr->second;
+    const Window frame = clients_[e.window];
 
     dragStartX_ = e.x_root; //
     dragStartY_ = e.y_root; // save cursor's starting position
@@ -595,24 +640,6 @@ void WindowManager::OnMotionNotify(const XMotionEvent& e){
             destFrameWidth, destFrameHeight
         );
     }
-}
-
-void WindowManager::drawTree(struct node* root, int x, int y, int width, int height){
-    if (root == NULL) return;
-
-    if (root->t == horizontal){
-        drawTree(root->left, x, y, width, 0.5*height);
-        drawTree(root->right, x, 1.5*y, width, 0.5*height);
-    }
-    else if (root->t == veritcal){
-        drawTree(root->left, x, y, 0.5*width, height);
-        drawTree(root->right, 1.5*x, y, 0.5*width, height);
-    }
-    else{
-        XMoveResizeWindow(display_, root->w, x, y, width, height);
-    }
-
-    return;
 }
 
 int WindowManager::OnXError(Display* display, XErrorEvent* e){
