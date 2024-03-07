@@ -217,9 +217,6 @@ void WindowManager::OnConfigureRequest(const XConfigureRequestEvent& e){
 }
 
 void WindowManager::OnMapRequest(const XMapRequestEvent& e){
-    // Frame(e.window, false);
-    // XMapWindow(display_, e.window);
-
     Window focused;
     int revertTo;
 
@@ -232,12 +229,12 @@ void WindowManager::OnMapRequest(const XMapRequestEvent& e){
     }
 
     else{
-        LOG(INFO) << "Add " << e.window << " to existing container";
+        
 
         auto itr = clients_.find(focused);
         Window frame = itr->second;
         clients_.insert({ e.window, frame });
-
+        LOG(INFO) << "Add " << e.window << " to existing container " << frame;
         XWindowAttributes attributes;
 
         XReparentWindow(
@@ -355,7 +352,38 @@ void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
         return;
     }
 
-    Unframe(e.window);
+    unsigned int numchildren;
+    auto itr = clients_.find(e.window);
+    Window frame = itr->second; 
+
+    XReparentWindow(
+        display_,
+        e.window,
+        root_,
+        0, 0
+    );
+
+    XRemoveFromSaveSet(display_, e.window);
+    clients_.erase(e.window);
+    Window root, parent, *children;
+    
+    XQueryTree(
+        display_,
+        frame,
+        &root,
+        &parent,
+        &children,
+        &numchildren
+    );
+
+    if (children == 0){
+        XDestroyWindow(display_, frame);
+        XSetInputFocus(display_, PointerRoot, PointerRoot, CurrentTime);
+    }
+
+    else{
+        buildFrame(frame);
+    }
 }
 
 void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window decorations
@@ -472,7 +500,8 @@ void WindowManager::Unframe(Window w){
     CHECK(clients_.count(w));
 
     // Get frame
-    Window frame = clients_[w];
+    auto itr = clients_.find(w);
+    Window frame = itr->second;
 
     // Unmap frame
     XUnmapWindow(display_, frame);
