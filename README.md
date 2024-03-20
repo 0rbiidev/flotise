@@ -12,8 +12,9 @@ to a multi-monitor setup.
 
 New opened applications will be placed in the focused frame. If the desktop is focused, the application will be opened in a new frame.
 
-- Alt + F4: Close window
-- Alt + Left Click: Move frame
+- Alt + F4: Close application
+- Alt + Left Click: Focus frame
+- Alt + Left Drag: Move frame
 - Alt + Right Click: Resize frame
 - Alt + Escape: Focus desktop
 
@@ -26,7 +27,7 @@ New opened applications will be placed in the focused frame. If the desktop is f
 - A C++ compiler with C++-11 compatibility
 
 ### Test
-To run flotise in testing mode, ensure the build dependencies are met along with following additional dependencies
+To run **flotise** in testing mode, ensure the build dependencies are met along with following additional dependencies
 
 - [Xephyr](https://www.freedesktop.org/wiki/Software/Xephyr/)
 - xinit
