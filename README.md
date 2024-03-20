@@ -8,6 +8,15 @@ The idea behind **flotise** is to offer an alternative to the typical virtual de
 The benefit of this system over virtual desktops is the ability to arrange these collections of applications in a similar way
 to a multi-monitor setup.
 
+## User guide
+
+New opened applications will be placed in the focused frame. If the desktop is focused, the application will be opened in a new frame.
+
+- Alt + F4: Close window
+- Alt + Left Click: Move frame
+- Alt + Right Click: Resize frame
+- Alt + Escape: Focus desktop
+
 ## Dependencies
 
 ### Build
