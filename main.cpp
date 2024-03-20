@@ -2,6 +2,8 @@
 #include <glog/logging.h>
 #include "window_manager.hpp"
 
+
+
 using ::std::unique_ptr;
 
 int main (int argc, char** argv){

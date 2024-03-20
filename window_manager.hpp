@@ -37,10 +37,13 @@ class WindowManager{
       void OnKeyRelease(const XKeyEvent& e);
       void OnButtonRelease(const XButtonEvent& e);
       void OnMotionNotify(const XMotionEvent& e);
+      void OnFocusIn(const XFocusInEvent& e);
+      void OnFocusOut(const XFocusOutEvent& e);
       
       void drawTree(struct node* root, int x, int y, int width, int height);
       void buildFrame(Window frame);
       void tile(Window frame, struct node* root, int x, int y, int width, int height);
+      void escapeFrame(Window w);
 
       // Error handlers
       static int OnXError(Display* display, XErrorEvent* e); // error handler, passes address to Xlib

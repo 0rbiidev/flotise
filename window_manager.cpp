@@ -14,6 +14,12 @@ using ::std::string;
 using ::std::max;
 using ::std::pair;
 
+const unsigned int BORDER_WIDTH = 3;
+const unsigned long BORDER_COLOUR = 0x9c353e;
+const unsigned long BG_COLOUR = 0x594646;
+
+XColor color;
+
 static const char* const X_EVENT_TYPE_NAMES[] = {
       "",
       "",
@@ -90,7 +96,7 @@ void WindowManager::Run() {
     XSelectInput (
         display_,
         root_,
-        SubstructureRedirectMask | SubstructureNotifyMask
+        SubstructureRedirectMask | SubstructureNotifyMask | FocusChangeMask
     );
 
     XSetInputFocus(display_, PointerRoot, NULL, CurrentTime);
@@ -172,6 +178,12 @@ void WindowManager::Run() {
                 break;
             case MotionNotify:
                 OnMotionNotify(e.xmotion);
+                break;
+            case FocusIn:
+                OnFocusIn(e.xfocus);
+                break;
+            case FocusOut:
+                OnFocusOut(e.xfocus);
                 break;
             default:
                 LOG(WARNING) << "Unhandled Event" << X_EVENT_TYPE_NAMES[e.type];
@@ -290,6 +302,16 @@ void WindowManager::OnMapRequest(const XMapRequestEvent& e){
             GrabModeAsync
         );
 
+        XGrabKey( // Escape to new container (alt+esc)
+            display_,
+            XKeysymToKeycode(display_, XK_Escape),
+            Mod1Mask,
+            e.window,
+            false,
+            GrabModeAsync,
+            GrabModeAsync
+        );
+
         XMapWindow(display_, e.window);
 
         buildFrame(frame);
@@ -343,6 +365,20 @@ void WindowManager::buildFrame(Window frame){
     );
 }
 
+void WindowManager::OnFocusIn(const XFocusInEvent& e){
+    //if (e.window == root_) return;
+    LOG(INFO) << "Focused window " << e.window;
+
+    //XSetWindowBorderWidth(display_, e.window, BORDER_WIDTH);
+}
+
+void WindowManager::OnFocusOut(const XFocusOutEvent& e){
+    //if (e.window == root_) return;
+    LOG(INFO) << "Unfocused window " << e.window;
+
+    //XSetWindowBorderWidth(display_, e.window, 0); 
+}
+
 void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
     // Ignore request to unmap non-client window
     // eg. user-destroyed frame
@@ -377,6 +413,7 @@ void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
     );
 
     if (children == 0){
+        LOG(INFO) << "Destroying empty frame " << frame;
         XDestroyWindow(display_, frame);
         XSetInputFocus(display_, PointerRoot, PointerRoot, CurrentTime);
     }
@@ -387,9 +424,6 @@ void WindowManager::OnUnmapNotify(const XUnmapEvent& e){
 }
 
 void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window decorations
-    const unsigned int BORDER_WIDTH = 3;
-    const unsigned long BORDER_COLOUR = 0x9c353e;
-    const unsigned long BG_COLOUR = 0x594646;
 
     CHECK(!clients_.count(w));
 
@@ -423,7 +457,7 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
     XSelectInput(
         display_,
         frame,
-        SubstructureRedirectMask | SubstructureNotifyMask
+        SubstructureRedirectMask | SubstructureNotifyMask | FocusChangeMask
     );
 
     // Restore client if crash
@@ -435,11 +469,6 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
         frame,
         0, 0
     );
-    /* XSetWindowBorder( //research into pixmaps for window border
-        display_,
-        frame,
-
-    ); */
 
     // map frame to display
     XMapWindow(display_, frame);
@@ -493,6 +522,16 @@ void WindowManager::Frame(Window w, bool created_before_wm){ //Draws window deco
         GrabModeAsync
     );
 
+    XGrabKey( // Unfocus current window
+        display_,
+        XKeysymToKeycode(display_, XK_Escape),
+        Mod1Mask,
+        w,
+        false,
+        GrabModeAsync,
+        GrabModeAsync
+    );
+
     LOG(INFO) << "Framed window " << w << " [" << frame << "]";
 }
 
@@ -503,8 +542,6 @@ void WindowManager::Unframe(Window w){
     auto itr = clients_.find(w);
     Window frame = itr->second;
 
-    // Unmap frame
-    XUnmapWindow(display_, frame);
     // Reparent frameless client to root window
     XReparentWindow(
         display_,
@@ -514,8 +551,7 @@ void WindowManager::Unframe(Window w){
     );
     // Remove client from save set
     XRemoveFromSaveSet(display_, w);
-    // Destroy frame
-    XDestroyWindow(display_, frame);
+
     clients_.erase(w);
 
     XSetInputFocus(display_, PointerRoot, PointerRoot, CurrentTime);
@@ -580,6 +616,14 @@ void WindowManager::OnKeyPress(const XKeyEvent& e){
         XRaiseWindow(display_, i->second);
         XSetInputFocus(display_, i->first, RevertToPointerRoot, CurrentTime);
     }
+
+    else if((e.state & Mod1Mask) && e.keycode == XKeysymToKeycode(display_, XK_Escape)){
+        if (!(clients_.count(e.window))) return;
+        Window frame = clients_[e.window];
+
+        //XSetWindowBorderWidth(display_, frame, 0);
+        XSetInputFocus(display_, PointerRoot, NULL, CurrentTime);
+    } 
 }
 
 void WindowManager::OnKeyRelease(const XKeyEvent& e){}
