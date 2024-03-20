@@ -6,8 +6,6 @@ extern "C"{
 #include <unordered_map>
 #include <map>
 
-#include "window_tree.hpp"
-
 class WindowManager{
     private:
       WindowManager(Display* display);
