@@ -1,6 +1,7 @@
 # flotise
 A concept window manager utilising **flo**ating **ti**le **se**ts
 
+![Screenshot from 2024-05-03 10-58-23](https://github.com/0rbiidev/flotise/assets/148106467/e10ef404-1df9-4c6c-b8ca-94d9af3b4304)
 ## About 
 
 **flotise** is a concept window manager which allows windows to be tiled within floating, rearrangeable and resizable frames. 
@@ -34,6 +35,7 @@ To run **flotise** in testing mode, ensure the build dependencies are met along 
 - xterm, xeyes
 
 Then run the following script in the root of the repository.
+
 
     ./run.sh
 
